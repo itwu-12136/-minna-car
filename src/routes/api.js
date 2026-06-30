@@ -2,426 +2,367 @@ import { Hono } from 'hono';
 
 const api = new Hono();
 
-// Initialize database schema
+// Seed data
+const SEED_USERS = [
+  { id: 1, username: 'sora_car', display_name: 'SORA', bio: '車が大好き！GR86オーナー' },
+  { id: 2, username: 'cart_kun', display_name: 'カートくん', bio: 'カスタムカー愛好家' },
+  { id: 3, username: 'drive_diary', display_name: 'ドライブ日記', bio: '週末ドライバー🚗' },
+  { id: 4, username: 'maintenance_note', display_name: '整備記録簿', bio: 'DIY整備が趣味です' },
+  { id: 5, username: 'takumi_car', display_name: '車好きのたくみ', bio: '峠を攻める！' },
+  { id: 6, username: 'garage_life', display_name: 'ガレージライフ', bio: 'ガレージでの時間が至福' },
+  { id: 7, username: 'car_trip', display_name: '車と旅する人', bio: '愛車と日本一周中' },
+];
+
+const SEED_POSTS = [
+  {
+    id: 1, user_id: 2,
+    content: '新しいホイールに交換！やっぱりBBSは最高…\n#GR86 #BBS #カスタム',
+    car_model: 'GR86', location: '', mood: '',
+    created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+    images: ['/api/placeholder/car1'],
+    hashtags: ['GR86', 'BBS', 'カスタム'],
+  },
+  {
+    id: 2, user_id: 3,
+    content: '海沿いのワインディング最高だった～\nやっぱりドライブはやめられない！\n#ドライブ #景色 #ロードスター',
+    car_model: 'ロードスター', location: '', mood: '',
+    created_at: new Date(Date.now() - 5 * 3600000).toISOString(),
+    images: ['/api/placeholder/car2'],
+    hashtags: ['ドライブ', '景色', 'ロードスター'],
+  },
+  {
+    id: 3, user_id: 4,
+    content: 'エンジンオイルとフィルター交換完了 🔧\nこれでまた気持ちよく走れるぞ！',
+    car_model: '', location: '', mood: '',
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    images: [],
+    hashtags: [],
+  },
+];
+
+const SEED_HASHTAGS = [
+  { id: 1, name: 'みんなの愛車', post_count: 12345 },
+  { id: 2, name: 'JDM', post_count: 8765 },
+  { id: 3, name: '愛車紹介', post_count: 7890 },
+  { id: 4, name: 'カスタムカー', post_count: 6543 },
+  { id: 5, name: 'ドライブスポット', post_count: 5678 },
+  { id: 6, name: 'GR86', post_count: 3210 },
+  { id: 7, name: 'BBS', post_count: 1234 },
+  { id: 8, name: 'カスタム', post_count: 4567 },
+  { id: 9, name: 'ドライブ', post_count: 5432 },
+  { id: 10, name: '景色', post_count: 2345 },
+  { id: 11, name: 'ロードスター', post_count: 1890 },
+];
+
+const SEED_LIKES = { '1': [1,3,4,5,6,7], '2': [1,2,4,5], '3': [1,2,3] };
+const SEED_COMMENTS = [
+  { id: 1, user_id: 1, post_id: 1, content: 'かっこいい！', created_at: new Date(Date.now() - 3600000).toISOString() },
+  { id: 2, user_id: 5, post_id: 1, content: 'BBS似合ってますね！', created_at: new Date(Date.now() - 1800000).toISOString() },
+  { id: 3, user_id: 1, post_id: 2, content: '最高のドライブですね！', created_at: new Date(Date.now() - 3600000).toISOString() },
+];
+
+// Helper: get/set KV data with fallback to seed
+async function getData(kv, key, seedData) {
+  const val = await kv.get(key, 'json');
+  if (val !== null) return val;
+  await kv.put(key, JSON.stringify(seedData));
+  return seedData;
+}
+
+// Initialize with seed data
 api.post('/init', async (c) => {
-  const db = c.env.DB;
-  const schema = `
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  username TEXT UNIQUE NOT NULL,
-  display_name TEXT NOT NULL,
-  avatar_url TEXT DEFAULT '/api/avatar/default',
-  bio TEXT DEFAULT '',
-  created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS posts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  content TEXT NOT NULL,
-  car_model TEXT DEFAULT '',
-  location TEXT DEFAULT '',
-  mood TEXT DEFAULT '',
-  created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-CREATE TABLE IF NOT EXISTS post_images (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  post_id INTEGER NOT NULL,
-  image_url TEXT NOT NULL,
-  sort_order INTEGER DEFAULT 0,
-  FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS likes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  post_id INTEGER NOT NULL,
-  created_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(user_id, post_id),
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS comments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  post_id INTEGER NOT NULL,
-  content TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS hashtags (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT UNIQUE NOT NULL,
-  post_count INTEGER DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS post_hashtags (
-  post_id INTEGER NOT NULL,
-  hashtag_id INTEGER NOT NULL,
-  PRIMARY KEY (post_id, hashtag_id),
-  FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
-  FOREIGN KEY (hashtag_id) REFERENCES hashtags(id)
-);
-CREATE TABLE IF NOT EXISTS follows (
-  follower_id INTEGER NOT NULL,
-  following_id INTEGER NOT NULL,
-  created_at TEXT DEFAULT (datetime('now')),
-  PRIMARY KEY (follower_id, following_id),
-  FOREIGN KEY (follower_id) REFERENCES users(id),
-  FOREIGN KEY (following_id) REFERENCES users(id)
-);
-CREATE TABLE IF NOT EXISTS bookmarks (
-  user_id INTEGER NOT NULL,
-  post_id INTEGER NOT NULL,
-  created_at TEXT DEFAULT (datetime('now')),
-  PRIMARY KEY (user_id, post_id),
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS notifications (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  from_user_id INTEGER,
-  type TEXT NOT NULL,
-  post_id INTEGER,
-  read INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (from_user_id) REFERENCES users(id),
-  FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS messages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  from_user_id INTEGER NOT NULL,
-  to_user_id INTEGER NOT NULL,
-  content TEXT NOT NULL,
-  read INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (from_user_id) REFERENCES users(id),
-  FOREIGN KEY (to_user_id) REFERENCES users(id)
-);`;
-
-  const statements = schema.split(';').filter(s => s.trim());
-  for (const stmt of statements) {
-    await db.prepare(stmt).run();
-  }
-
-  // Seed data
-  const seeds = [
-    `INSERT OR IGNORE INTO users (id, username, display_name, bio) VALUES (1, 'sora_car', 'SORA', '車が大好き！GR86オーナー')`,
-    `INSERT OR IGNORE INTO users (id, username, display_name, bio) VALUES (2, 'cart_kun', 'カートくん', 'カスタムカー愛好家')`,
-    `INSERT OR IGNORE INTO users (id, username, display_name, bio) VALUES (3, 'drive_diary', 'ドライブ日記', '週末ドライバー🚗')`,
-    `INSERT OR IGNORE INTO users (id, username, display_name, bio) VALUES (4, 'maintenance_note', '整備記録簿', 'DIY整備が趣味です')`,
-    `INSERT OR IGNORE INTO users (id, username, display_name, bio) VALUES (5, 'takumi_car', '車好きのたくみ', '峠を攻める！')`,
-    `INSERT OR IGNORE INTO users (id, username, display_name, bio) VALUES (6, 'garage_life', 'ガレージライフ', 'ガレージでの時間が至福')`,
-    `INSERT OR IGNORE INTO users (id, username, display_name, bio) VALUES (7, 'car_trip', '車と旅する人', '愛車と日本一周中')`,
-    `INSERT OR IGNORE INTO posts (id, user_id, content, car_model, created_at) VALUES (1, 2, '新しいホイールに交換！やっぱりBBSは最高…\n#GR86 #BBS #カスタム', 'GR86', datetime('now', '-2 hours'))`,
-    `INSERT OR IGNORE INTO posts (id, user_id, content, car_model, created_at) VALUES (2, 3, '海沿いのワインディング最高だった～\nやっぱりドライブはやめられない！\n#ドライブ #景色 #ロードスター', 'ロードスター', datetime('now', '-5 hours'))`,
-    `INSERT OR IGNORE INTO posts (id, user_id, content, car_model, created_at) VALUES (3, 4, 'エンジンオイルとフィルター交換完了 🔧\nこれでまた気持ちよく走れるぞ！', '', datetime('now', '-1 day'))`,
-    `INSERT OR IGNORE INTO hashtags (id, name, post_count) VALUES (1, 'みんなの愛車', 12345)`,
-    `INSERT OR IGNORE INTO hashtags (id, name, post_count) VALUES (2, 'JDM', 8765)`,
-    `INSERT OR IGNORE INTO hashtags (id, name, post_count) VALUES (3, '愛車紹介', 7890)`,
-    `INSERT OR IGNORE INTO hashtags (id, name, post_count) VALUES (4, 'カスタムカー', 6543)`,
-    `INSERT OR IGNORE INTO hashtags (id, name, post_count) VALUES (5, 'ドライブスポット', 5678)`,
-    `INSERT OR IGNORE INTO hashtags (id, name, post_count) VALUES (6, 'GR86', 3210)`,
-    `INSERT OR IGNORE INTO hashtags (id, name, post_count) VALUES (7, 'BBS', 1234)`,
-    `INSERT OR IGNORE INTO hashtags (id, name, post_count) VALUES (8, 'カスタム', 4567)`,
-    `INSERT OR IGNORE INTO hashtags (id, name, post_count) VALUES (9, 'ドライブ', 5432)`,
-    `INSERT OR IGNORE INTO hashtags (id, name, post_count) VALUES (10, '景色', 2345)`,
-    `INSERT OR IGNORE INTO hashtags (id, name, post_count) VALUES (11, 'ロードスター', 1890)`,
-    `INSERT OR IGNORE INTO post_hashtags (post_id, hashtag_id) VALUES (1, 6)`,
-    `INSERT OR IGNORE INTO post_hashtags (post_id, hashtag_id) VALUES (1, 7)`,
-    `INSERT OR IGNORE INTO post_hashtags (post_id, hashtag_id) VALUES (1, 8)`,
-    `INSERT OR IGNORE INTO post_hashtags (post_id, hashtag_id) VALUES (2, 9)`,
-    `INSERT OR IGNORE INTO post_hashtags (post_id, hashtag_id) VALUES (2, 10)`,
-    `INSERT OR IGNORE INTO post_hashtags (post_id, hashtag_id) VALUES (2, 11)`,
-  ];
-
-  for (const seed of seeds) {
-    try { await db.prepare(seed).run(); } catch(e) { /* ignore duplicates */ }
-  }
-
-  return c.json({ success: true, message: 'Database initialized' });
+  const kv = c.env.KV;
+  await kv.put('users', JSON.stringify(SEED_USERS));
+  await kv.put('posts', JSON.stringify(SEED_POSTS));
+  await kv.put('hashtags', JSON.stringify(SEED_HASHTAGS));
+  await kv.put('likes', JSON.stringify(SEED_LIKES));
+  await kv.put('comments', JSON.stringify(SEED_COMMENTS));
+  await kv.put('follows', JSON.stringify({}));
+  await kv.put('bookmarks', JSON.stringify({}));
+  await kv.put('next_post_id', '4');
+  await kv.put('next_comment_id', '4');
+  return c.json({ success: true, message: 'Data initialized' });
 });
 
 // Get timeline posts
 api.get('/posts', async (c) => {
-  const db = c.env.DB;
-  const page = parseInt(c.req.query('page') || '1');
-  const limit = 20;
-  const offset = (page - 1) * limit;
+  const kv = c.env.KV;
+  const posts = await getData(kv, 'posts', SEED_POSTS);
+  const users = await getData(kv, 'users', SEED_USERS);
+  const likes = await getData(kv, 'likes', SEED_LIKES);
+  const comments = await getData(kv, 'comments', SEED_COMMENTS);
 
-  const posts = await db.prepare(`
-    SELECT p.*, u.username, u.display_name, u.avatar_url,
-      (SELECT COUNT(*) FROM likes WHERE post_id = p.id) as like_count,
-      (SELECT COUNT(*) FROM comments WHERE post_id = p.id) as comment_count
-    FROM posts p
-    JOIN users u ON p.user_id = u.id
-    ORDER BY p.created_at DESC
-    LIMIT ? OFFSET ?
-  `).bind(limit, offset).all();
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u;
 
-  // Get images and hashtags for each post
-  for (const post of posts.results) {
-    const images = await db.prepare(
-      'SELECT image_url FROM post_images WHERE post_id = ? ORDER BY sort_order'
-    ).bind(post.id).all();
-    post.images = images.results.map(i => i.image_url);
+  const enriched = posts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(p => ({
+    ...p,
+    username: userMap[p.user_id]?.username || 'unknown',
+    display_name: userMap[p.user_id]?.display_name || 'Unknown',
+    avatar_url: '/api/avatar/' + (userMap[p.user_id]?.username || 'default'),
+    like_count: (likes[p.id] || []).length,
+    comment_count: comments.filter(cm => cm.post_id === p.id).length,
+  }));
 
-    const hashtags = await db.prepare(`
-      SELECT h.name FROM hashtags h
-      JOIN post_hashtags ph ON h.id = ph.hashtag_id
-      WHERE ph.post_id = ?
-    `).bind(post.id).all();
-    post.hashtags = hashtags.results.map(h => h.name);
-  }
-
-  return c.json({ posts: posts.results, page });
+  return c.json({ posts: enriched });
 });
 
 // Create post
 api.post('/posts', async (c) => {
-  const db = c.env.DB;
+  const kv = c.env.KV;
   const body = await c.req.json();
   const { content, car_model, location, mood, user_id } = body;
   const userId = user_id || 1;
 
-  const result = await db.prepare(
-    'INSERT INTO posts (user_id, content, car_model, location, mood) VALUES (?, ?, ?, ?, ?)'
-  ).bind(userId, content, car_model || '', location || '', mood || '').run();
+  const posts = await getData(kv, 'posts', SEED_POSTS);
+  const hashtags = await getData(kv, 'hashtags', SEED_HASHTAGS);
+  let nextId = parseInt(await kv.get('next_post_id') || '4');
 
-  const postId = result.meta.last_row_id;
-
-  // Extract and store hashtags
+  // Extract hashtags
+  const postHashtags = [];
   const hashtagRegex = /#([\w\u3000-\u9fff\uf900-\ufaff]+)/g;
   let match;
   while ((match = hashtagRegex.exec(content)) !== null) {
-    const tagName = match[1];
-    await db.prepare(
-      'INSERT OR IGNORE INTO hashtags (name, post_count) VALUES (?, 0)'
-    ).bind(tagName).run();
-    await db.prepare(
-      'UPDATE hashtags SET post_count = post_count + 1 WHERE name = ?'
-    ).bind(tagName).run();
-    const tag = await db.prepare('SELECT id FROM hashtags WHERE name = ?').bind(tagName).first();
-    if (tag) {
-      await db.prepare(
-        'INSERT OR IGNORE INTO post_hashtags (post_id, hashtag_id) VALUES (?, ?)'
-      ).bind(postId, tag.id).run();
+    postHashtags.push(match[1]);
+    const existing = hashtags.find(h => h.name === match[1]);
+    if (existing) {
+      existing.post_count++;
+    } else {
+      hashtags.push({ id: hashtags.length + 1, name: match[1], post_count: 1 });
     }
   }
 
-  return c.json({ success: true, post_id: postId });
+  const newPost = {
+    id: nextId,
+    user_id: userId,
+    content,
+    car_model: car_model || '',
+    location: location || '',
+    mood: mood || '',
+    created_at: new Date().toISOString(),
+    images: body.images || [],
+    hashtags: postHashtags,
+  };
+
+  posts.unshift(newPost);
+  await kv.put('posts', JSON.stringify(posts));
+  await kv.put('hashtags', JSON.stringify(hashtags));
+  await kv.put('next_post_id', String(nextId + 1));
+
+  return c.json({ success: true, post_id: nextId });
 });
 
 // Like/unlike post
 api.post('/posts/:id/like', async (c) => {
-  const db = c.env.DB;
-  const postId = parseInt(c.req.param('id'));
+  const kv = c.env.KV;
+  const postId = c.req.param('id');
   const body = await c.req.json();
   const userId = body.user_id || 1;
 
-  const existing = await db.prepare(
-    'SELECT id FROM likes WHERE user_id = ? AND post_id = ?'
-  ).bind(userId, postId).first();
+  const likes = await getData(kv, 'likes', SEED_LIKES);
+  if (!likes[postId]) likes[postId] = [];
 
-  if (existing) {
-    await db.prepare('DELETE FROM likes WHERE user_id = ? AND post_id = ?')
-      .bind(userId, postId).run();
+  const idx = likes[postId].indexOf(userId);
+  if (idx >= 0) {
+    likes[postId].splice(idx, 1);
+    await kv.put('likes', JSON.stringify(likes));
     return c.json({ liked: false });
   } else {
-    await db.prepare('INSERT INTO likes (user_id, post_id) VALUES (?, ?)')
-      .bind(userId, postId).run();
+    likes[postId].push(userId);
+    await kv.put('likes', JSON.stringify(likes));
     return c.json({ liked: true });
   }
 });
 
 // Bookmark/unbookmark post
 api.post('/posts/:id/bookmark', async (c) => {
-  const db = c.env.DB;
-  const postId = parseInt(c.req.param('id'));
+  const kv = c.env.KV;
+  const postId = c.req.param('id');
   const body = await c.req.json();
   const userId = body.user_id || 1;
 
-  const existing = await db.prepare(
-    'SELECT user_id FROM bookmarks WHERE user_id = ? AND post_id = ?'
-  ).bind(userId, postId).first();
+  const bookmarks = await getData(kv, 'bookmarks', {});
+  const key = `${userId}`;
+  if (!bookmarks[key]) bookmarks[key] = [];
 
-  if (existing) {
-    await db.prepare('DELETE FROM bookmarks WHERE user_id = ? AND post_id = ?')
-      .bind(userId, postId).run();
+  const idx = bookmarks[key].indexOf(parseInt(postId));
+  if (idx >= 0) {
+    bookmarks[key].splice(idx, 1);
+    await kv.put('bookmarks', JSON.stringify(bookmarks));
     return c.json({ bookmarked: false });
   } else {
-    await db.prepare('INSERT INTO bookmarks (user_id, post_id) VALUES (?, ?)')
-      .bind(userId, postId).run();
+    bookmarks[key].push(parseInt(postId));
+    await kv.put('bookmarks', JSON.stringify(bookmarks));
     return c.json({ bookmarked: true });
   }
 });
 
 // Get comments for a post
 api.get('/posts/:id/comments', async (c) => {
-  const db = c.env.DB;
+  const kv = c.env.KV;
   const postId = parseInt(c.req.param('id'));
+  const comments = await getData(kv, 'comments', SEED_COMMENTS);
+  const users = await getData(kv, 'users', SEED_USERS);
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u;
 
-  const comments = await db.prepare(`
-    SELECT c.*, u.username, u.display_name, u.avatar_url
-    FROM comments c
-    JOIN users u ON c.user_id = u.id
-    WHERE c.post_id = ?
-    ORDER BY c.created_at ASC
-  `).bind(postId).all();
+  const postComments = comments
+    .filter(cm => cm.post_id === postId)
+    .map(cm => ({
+      ...cm,
+      username: userMap[cm.user_id]?.username || 'unknown',
+      display_name: userMap[cm.user_id]?.display_name || 'Unknown',
+      avatar_url: '/api/avatar/' + (userMap[cm.user_id]?.username || 'default'),
+    }));
 
-  return c.json({ comments: comments.results });
+  return c.json({ comments: postComments });
 });
 
 // Add comment
 api.post('/posts/:id/comments', async (c) => {
-  const db = c.env.DB;
+  const kv = c.env.KV;
   const postId = parseInt(c.req.param('id'));
   const body = await c.req.json();
   const userId = body.user_id || 1;
 
-  await db.prepare(
-    'INSERT INTO comments (user_id, post_id, content) VALUES (?, ?, ?)'
-  ).bind(userId, postId, body.content).run();
+  const comments = await getData(kv, 'comments', SEED_COMMENTS);
+  let nextId = parseInt(await kv.get('next_comment_id') || '4');
+
+  comments.push({
+    id: nextId,
+    user_id: userId,
+    post_id: postId,
+    content: body.content,
+    created_at: new Date().toISOString(),
+  });
+
+  await kv.put('comments', JSON.stringify(comments));
+  await kv.put('next_comment_id', String(nextId + 1));
 
   return c.json({ success: true });
 });
 
 // Get popular hashtags
 api.get('/hashtags/popular', async (c) => {
-  const db = c.env.DB;
-  const hashtags = await db.prepare(
-    'SELECT * FROM hashtags ORDER BY post_count DESC LIMIT 5'
-  ).all();
-  return c.json({ hashtags: hashtags.results });
+  const kv = c.env.KV;
+  const hashtags = await getData(kv, 'hashtags', SEED_HASHTAGS);
+  const sorted = [...hashtags].sort((a, b) => b.post_count - a.post_count).slice(0, 5);
+  return c.json({ hashtags: sorted });
 });
 
 // Search posts by hashtag
 api.get('/hashtags/:name', async (c) => {
-  const db = c.env.DB;
-  const name = c.req.param('name');
+  const kv = c.env.KV;
+  const name = decodeURIComponent(c.req.param('name'));
+  const posts = await getData(kv, 'posts', SEED_POSTS);
+  const users = await getData(kv, 'users', SEED_USERS);
+  const likes = await getData(kv, 'likes', SEED_LIKES);
+  const comments = await getData(kv, 'comments', SEED_COMMENTS);
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u;
 
-  const posts = await db.prepare(`
-    SELECT p.*, u.username, u.display_name, u.avatar_url,
-      (SELECT COUNT(*) FROM likes WHERE post_id = p.id) as like_count,
-      (SELECT COUNT(*) FROM comments WHERE post_id = p.id) as comment_count
-    FROM posts p
-    JOIN users u ON p.user_id = u.id
-    JOIN post_hashtags ph ON p.id = ph.post_id
-    JOIN hashtags h ON ph.hashtag_id = h.id
-    WHERE h.name = ?
-    ORDER BY p.created_at DESC
-  `).bind(name).all();
+  const filtered = posts.filter(p => (p.hashtags || []).includes(name) || p.content.includes('#' + name));
+  const enriched = filtered.map(p => ({
+    ...p,
+    username: userMap[p.user_id]?.username || 'unknown',
+    display_name: userMap[p.user_id]?.display_name || 'Unknown',
+    avatar_url: '/api/avatar/' + (userMap[p.user_id]?.username || 'default'),
+    like_count: (likes[p.id] || []).length,
+    comment_count: comments.filter(cm => cm.post_id === p.id).length,
+  }));
 
-  for (const post of posts.results) {
-    const images = await db.prepare(
-      'SELECT image_url FROM post_images WHERE post_id = ? ORDER BY sort_order'
-    ).bind(post.id).all();
-    post.images = images.results.map(i => i.image_url);
-  }
-
-  return c.json({ posts: posts.results, hashtag: name });
+  return c.json({ posts: enriched, hashtag: name });
 });
 
 // Get recommended users
 api.get('/users/recommended', async (c) => {
-  const db = c.env.DB;
-  const users = await db.prepare(
-    'SELECT id, username, display_name, avatar_url, bio FROM users WHERE id > 1 ORDER BY RANDOM() LIMIT 3'
-  ).all();
-  return c.json({ users: users.results });
+  const kv = c.env.KV;
+  const users = await getData(kv, 'users', SEED_USERS);
+  const recommended = users.filter(u => u.id > 1).sort(() => Math.random() - 0.5).slice(0, 3);
+  return c.json({ users: recommended });
 });
 
 // Get user profile
 api.get('/users/:username', async (c) => {
-  const db = c.env.DB;
+  const kv = c.env.KV;
   const username = c.req.param('username');
-
-  const user = await db.prepare(
-    'SELECT * FROM users WHERE username = ?'
-  ).bind(username).first();
-
+  const users = await getData(kv, 'users', SEED_USERS);
+  const user = users.find(u => u.username === username);
   if (!user) return c.json({ error: 'User not found' }, 404);
 
-  const postCount = await db.prepare(
-    'SELECT COUNT(*) as count FROM posts WHERE user_id = ?'
-  ).bind(user.id).first();
-
-  const followerCount = await db.prepare(
-    'SELECT COUNT(*) as count FROM follows WHERE following_id = ?'
-  ).bind(user.id).first();
-
-  const followingCount = await db.prepare(
-    'SELECT COUNT(*) as count FROM follows WHERE follower_id = ?'
-  ).bind(user.id).first();
+  const posts = await getData(kv, 'posts', SEED_POSTS);
+  const follows = await getData(kv, 'follows', {});
 
   return c.json({
     ...user,
-    post_count: postCount.count,
-    follower_count: followerCount.count,
-    following_count: followingCount.count
+    post_count: posts.filter(p => p.user_id === user.id).length,
+    follower_count: Object.values(follows).filter(arr => arr.includes(user.id)).length,
+    following_count: (follows[user.id] || []).length,
   });
 });
 
 // Follow/unfollow user
 api.post('/users/:id/follow', async (c) => {
-  const db = c.env.DB;
+  const kv = c.env.KV;
   const targetId = parseInt(c.req.param('id'));
   const body = await c.req.json();
   const userId = body.user_id || 1;
 
-  const existing = await db.prepare(
-    'SELECT follower_id FROM follows WHERE follower_id = ? AND following_id = ?'
-  ).bind(userId, targetId).first();
+  const follows = await getData(kv, 'follows', {});
+  if (!follows[userId]) follows[userId] = [];
 
-  if (existing) {
-    await db.prepare('DELETE FROM follows WHERE follower_id = ? AND following_id = ?')
-      .bind(userId, targetId).run();
+  const idx = follows[userId].indexOf(targetId);
+  if (idx >= 0) {
+    follows[userId].splice(idx, 1);
+    await kv.put('follows', JSON.stringify(follows));
     return c.json({ following: false });
   } else {
-    await db.prepare('INSERT INTO follows (follower_id, following_id) VALUES (?, ?)')
-      .bind(userId, targetId).run();
+    follows[userId].push(targetId);
+    await kv.put('follows', JSON.stringify(follows));
     return c.json({ following: true });
   }
 });
 
 // Search posts
 api.get('/search', async (c) => {
-  const db = c.env.DB;
+  const kv = c.env.KV;
   const query = c.req.query('q') || '';
+  const posts = await getData(kv, 'posts', SEED_POSTS);
+  const users = await getData(kv, 'users', SEED_USERS);
+  const likes = await getData(kv, 'likes', SEED_LIKES);
+  const comments = await getData(kv, 'comments', SEED_COMMENTS);
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u;
 
-  const posts = await db.prepare(`
-    SELECT p.*, u.username, u.display_name, u.avatar_url,
-      (SELECT COUNT(*) FROM likes WHERE post_id = p.id) as like_count,
-      (SELECT COUNT(*) FROM comments WHERE post_id = p.id) as comment_count
-    FROM posts p
-    JOIN users u ON p.user_id = u.id
-    WHERE p.content LIKE ? OR u.display_name LIKE ? OR p.car_model LIKE ?
-    ORDER BY p.created_at DESC
-    LIMIT 20
-  `).bind(`%${query}%`, `%${query}%`, `%${query}%`).all();
+  const filtered = posts.filter(p => {
+    const user = userMap[p.user_id];
+    return p.content.includes(query) ||
+      (user && user.display_name.includes(query)) ||
+      (p.car_model && p.car_model.includes(query));
+  });
 
-  for (const post of posts.results) {
-    const images = await db.prepare(
-      'SELECT image_url FROM post_images WHERE post_id = ? ORDER BY sort_order'
-    ).bind(post.id).all();
-    post.images = images.results.map(i => i.image_url);
-  }
+  const enriched = filtered.map(p => ({
+    ...p,
+    username: userMap[p.user_id]?.username || 'unknown',
+    display_name: userMap[p.user_id]?.display_name || 'Unknown',
+    avatar_url: '/api/avatar/' + (userMap[p.user_id]?.username || 'default'),
+    like_count: (likes[p.id] || []).length,
+    comment_count: comments.filter(cm => cm.post_id === p.id).length,
+  }));
 
-  return c.json({ posts: posts.results, query });
+  return c.json({ posts: enriched, query });
 });
 
 // Upload image to R2
 api.post('/upload', async (c) => {
   const bucket = c.env.BUCKET;
+  if (!bucket) return c.json({ error: 'Storage not available' }, 500);
+
   const formData = await c.req.formData();
   const file = formData.get('file');
-
   if (!file) return c.json({ error: 'No file provided' }, 400);
 
-  const key = `images/${Date.now()}-${Math.random().toString(36).substring(7)}-${file.name}`;
+  const key = `images/${Date.now()}-${Math.random().toString(36).substring(7)}`;
   await bucket.put(key, file.stream(), {
     httpMetadata: { contentType: file.type }
   });
@@ -432,46 +373,58 @@ api.post('/upload', async (c) => {
 // Serve images from R2
 api.get('/images/*', async (c) => {
   const bucket = c.env.BUCKET;
+  if (!bucket) return c.notFound();
+
   const key = c.req.path.replace('/api/images/', '');
   const object = await bucket.get(key);
-
   if (!object) return c.notFound();
 
   const headers = new Headers();
   headers.set('Content-Type', object.httpMetadata?.contentType || 'image/jpeg');
   headers.set('Cache-Control', 'public, max-age=31536000');
-
   return new Response(object.body, { headers });
 });
 
 // Generate placeholder car images (SVG)
 api.get('/placeholder/:name', async (c) => {
   const name = c.req.param('name');
-  const colors = {
-    car1: { bg: '#1a1a2e', car: '#e94560', text: 'GR86' },
-    car2: { bg: '#ff6b35', car: '#004e89', text: 'Roadster' },
-    car3: { bg: '#2d3436', car: '#00b894', text: 'Car' }
+  const configs = {
+    car1: { bg: '#1a1a2e', accent: '#e94560', label: 'GR86', sky: '#16213e' },
+    car2: { bg: '#0f3460', accent: '#e94560', label: 'Roadster', sky: '#533483' },
+    car3: { bg: '#2d3436', accent: '#00b894', label: 'Car', sky: '#636e72' },
   };
-  const color = colors[name] || colors.car1;
+  const cfg = configs[name] || configs.car1;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
-    <rect width="800" height="500" fill="${color.bg}"/>
-    <g transform="translate(400,250)">
-      <ellipse cx="0" cy="60" rx="200" ry="30" fill="rgba(0,0,0,0.3)"/>
-      <rect x="-180" y="-20" width="360" height="80" rx="20" fill="${color.car}"/>
-      <rect x="-120" y="-70" width="220" height="60" rx="15" fill="${color.car}" opacity="0.9"/>
-      <rect x="-100" y="-60" width="80" height="40" rx="5" fill="rgba(200,230,255,0.6)"/>
-      <rect x="0" y="-60" width="90" height="40" rx="5" fill="rgba(200,230,255,0.6)"/>
-      <circle cx="-120" cy="60" r="30" fill="#333"/>
-      <circle cx="-120" cy="60" r="18" fill="#888"/>
-      <circle cx="-120" cy="60" r="6" fill="#333"/>
-      <circle cx="120" cy="60" r="30" fill="#333"/>
-      <circle cx="120" cy="60" r="18" fill="#888"/>
-      <circle cx="120" cy="60" r="6" fill="#333"/>
-      <rect x="140" y="-10" width="50" height="20" rx="5" fill="rgba(255,255,200,0.8)"/>
-      <rect x="-190" y="-10" width="50" height="20" rx="5" fill="rgba(255,100,100,0.8)"/>
+    <defs>
+      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${cfg.sky}"/>
+        <stop offset="100%" stop-color="${cfg.bg}"/>
+      </linearGradient>
+      <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#2c2c2c"/>
+        <stop offset="100%" stop-color="#1a1a1a"/>
+      </linearGradient>
+    </defs>
+    <rect width="800" height="500" fill="url(#sky)"/>
+    <rect y="320" width="800" height="180" fill="url(#ground)"/>
+    <line x1="0" y1="320" x2="800" y2="320" stroke="#444" stroke-width="2"/>
+    <g transform="translate(400,300)">
+      <ellipse cx="0" cy="50" rx="170" ry="20" fill="rgba(0,0,0,0.4)"/>
+      <path d="M-160,0 L-140,-50 L-60,-80 L80,-80 L130,-50 L160,0 L160,20 L-160,20 Z" fill="${cfg.accent}"/>
+      <path d="M-120,-50 L-60,-80 L80,-80 L130,-50 Z" fill="${cfg.accent}" opacity="0.85"/>
+      <rect x="-110" y="-72" width="70" height="35" rx="4" fill="rgba(180,220,255,0.5)"/>
+      <rect x="-20" y="-72" width="85" height="35" rx="4" fill="rgba(180,220,255,0.5)"/>
+      <circle cx="-105" cy="20" r="24" fill="#222"/>
+      <circle cx="-105" cy="20" r="16" fill="#666"/>
+      <circle cx="-105" cy="20" r="5" fill="#222"/>
+      <circle cx="105" cy="20" r="24" fill="#222"/>
+      <circle cx="105" cy="20" r="16" fill="#666"/>
+      <circle cx="105" cy="20" r="5" fill="#222"/>
+      <rect x="130" y="-15" width="35" height="16" rx="4" fill="rgba(255,220,150,0.9)"/>
+      <rect x="-165" y="-15" width="35" height="16" rx="4" fill="rgba(255,80,80,0.9)"/>
     </g>
-    <text x="400" y="450" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="24" font-family="sans-serif">${color.text}</text>
+    <text x="400" y="460" text-anchor="middle" fill="rgba(255,255,255,0.15)" font-size="28" font-family="sans-serif" font-weight="bold">${cfg.label}</text>
   </svg>`;
 
   return new Response(svg, {
@@ -482,19 +435,178 @@ api.get('/placeholder/:name', async (c) => {
 // Generate avatar SVGs
 api.get('/avatar/:username', async (c) => {
   const username = c.req.param('username');
-  const hash = [...username].reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const hash = [...username].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   const hue = hash % 360;
+  const initial = username.charAt(0).toUpperCase();
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
-    <rect width="100" height="100" fill="hsl(${hue}, 60%, 80%)"/>
-    <circle cx="50" cy="38" r="18" fill="hsl(${hue}, 60%, 40%)"/>
-    <ellipse cx="50" cy="85" rx="30" ry="22" fill="hsl(${hue}, 60%, 40%)"/>
-    <text x="50" y="45" text-anchor="middle" fill="white" font-size="16" font-family="sans-serif" font-weight="bold">${username.charAt(0).toUpperCase()}</text>
+    <rect width="100" height="100" rx="50" fill="hsl(${hue}, 55%, 65%)"/>
+    <text x="50" y="56" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="40" font-family="sans-serif" font-weight="bold">${initial}</text>
   </svg>`;
 
   return new Response(svg, {
     headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=3600' }
   });
+});
+
+// Discord server member count (no bots) via widget API
+api.get('/stats/discord', async (c) => {
+  const guildId = '1456636959123443898';
+  try {
+    const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/widget.json`);
+    if (!res.ok) {
+      return c.json({ members: null, error: 'Widget disabled' });
+    }
+    const data = await res.json();
+    // widget.json "members" array only contains online non-bot members;
+    // "presence_count" gives approximate online count
+    // For total member count we use the name field or presence_count
+    return c.json({
+      members: data.presence_count || data.members?.length || 0,
+      name: data.name || 'Discord',
+    });
+  } catch (e) {
+    return c.json({ members: null, error: 'Failed to fetch' });
+  }
+});
+
+// Site visitor tracking
+api.post('/stats/visit', async (c) => {
+  const kv = c.env.KV;
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Increment total visitor count
+  const totalStr = await kv.get('stats_total_visitors');
+  const total = parseInt(totalStr || '0') + 1;
+  await kv.put('stats_total_visitors', String(total));
+
+  // Track unique daily visitors via IP hash
+  const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
+  const dailyKey = `stats_daily_${today}`;
+  const dailyData = await kv.get(dailyKey, 'json') || { count: 0, ips: [] };
+  const ipHash = await hashString(ip);
+  if (!dailyData.ips.includes(ipHash)) {
+    dailyData.ips.push(ipHash);
+    dailyData.count++;
+    await kv.put(dailyKey, JSON.stringify(dailyData), { expirationTtl: 86400 * 7 });
+  }
+
+  return c.json({ total, today: dailyData.count });
+});
+
+api.get('/stats/visitors', async (c) => {
+  const kv = c.env.KV;
+  const totalStr = await kv.get('stats_total_visitors');
+  const today = new Date().toISOString().slice(0, 10);
+  const dailyData = await kv.get(`stats_daily_${today}`, 'json') || { count: 0 };
+  return c.json({ total: parseInt(totalStr || '0'), today: dailyData.count });
+});
+
+async function hashString(str) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+}
+
+// Get user's bookmarked posts
+api.get('/bookmarks', async (c) => {
+  const kv = c.env.KV;
+  const userId = c.req.query('user_id') || '1';
+  const bookmarks = await getData(kv, 'bookmarks', {});
+  const postIds = bookmarks[userId] || [];
+  const posts = await getData(kv, 'posts', SEED_POSTS);
+  const users = await getData(kv, 'users', SEED_USERS);
+  const likes = await getData(kv, 'likes', SEED_LIKES);
+  const comments = await getData(kv, 'comments', SEED_COMMENTS);
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u;
+
+  const filtered = posts.filter(p => postIds.includes(p.id));
+  const enriched = filtered.map(p => ({
+    ...p,
+    username: userMap[p.user_id]?.username || 'unknown',
+    display_name: userMap[p.user_id]?.display_name || 'Unknown',
+    avatar_url: '/api/avatar/' + (userMap[p.user_id]?.username || 'default'),
+    like_count: (likes[p.id] || []).length,
+    comment_count: comments.filter(cm => cm.post_id === p.id).length,
+  }));
+
+  return c.json({ posts: enriched });
+});
+
+// Get posts by car model
+api.get('/cars', async (c) => {
+  const kv = c.env.KV;
+  const posts = await getData(kv, 'posts', SEED_POSTS);
+  const models = {};
+  for (const p of posts) {
+    if (p.car_model) {
+      models[p.car_model] = (models[p.car_model] || 0) + 1;
+    }
+  }
+  return c.json({ models });
+});
+
+api.get('/cars/:model', async (c) => {
+  const kv = c.env.KV;
+  const model = decodeURIComponent(c.req.param('model'));
+  const posts = await getData(kv, 'posts', SEED_POSTS);
+  const users = await getData(kv, 'users', SEED_USERS);
+  const likes = await getData(kv, 'likes', SEED_LIKES);
+  const comments = await getData(kv, 'comments', SEED_COMMENTS);
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u;
+
+  const filtered = posts.filter(p => p.car_model === model);
+  const enriched = filtered.map(p => ({
+    ...p,
+    username: userMap[p.user_id]?.username || 'unknown',
+    display_name: userMap[p.user_id]?.display_name || 'Unknown',
+    avatar_url: '/api/avatar/' + (userMap[p.user_id]?.username || 'default'),
+    like_count: (likes[p.id] || []).length,
+    comment_count: comments.filter(cm => cm.post_id === p.id).length,
+  }));
+
+  return c.json({ posts: enriched, model });
+});
+
+// Get user's own posts (garage)
+api.get('/garage', async (c) => {
+  const kv = c.env.KV;
+  const userId = parseInt(c.req.query('user_id') || '1');
+  const posts = await getData(kv, 'posts', SEED_POSTS);
+  const users = await getData(kv, 'users', SEED_USERS);
+  const likes = await getData(kv, 'likes', SEED_LIKES);
+  const comments = await getData(kv, 'comments', SEED_COMMENTS);
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u;
+
+  const filtered = posts.filter(p => p.user_id === userId);
+  const enriched = filtered.map(p => ({
+    ...p,
+    username: userMap[p.user_id]?.username || 'unknown',
+    display_name: userMap[p.user_id]?.display_name || 'Unknown',
+    avatar_url: '/api/avatar/' + (userMap[p.user_id]?.username || 'default'),
+    like_count: (likes[p.id] || []).length,
+    comment_count: comments.filter(cm => cm.post_id === p.id).length,
+  }));
+
+  return c.json({ posts: enriched });
+});
+
+// Get notifications
+api.get('/notifications', async (c) => {
+  const kv = c.env.KV;
+  const notifications = await getData(kv, 'notifications', []);
+  return c.json({ notifications });
+});
+
+// Get messages
+api.get('/messages', async (c) => {
+  const kv = c.env.KV;
+  const messages = await getData(kv, 'messages', []);
+  return c.json({ messages });
 });
 
 export { api as apiRoutes };

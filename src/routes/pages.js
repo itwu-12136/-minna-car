@@ -151,6 +151,44 @@ function layout(title, content) {
     .upload-preview-item img { width: 100%; height: 100%; object-fit: cover; }
     .upload-preview-item .remove { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; background: rgba(0,0,0,0.6); color: #fff; border: none; border-radius: 50%; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
 
+    /* Stats banner */
+    .stats-banner { display: flex; gap: 12px; margin-bottom: 16px; }
+    .stat-card { flex: 1; background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: flex; align-items: center; gap: 12px; }
+    .stat-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .stat-icon.discord { background: #5865F2; }
+    .stat-icon.visitors { background: #f57c00; }
+    .stat-icon svg { width: 24px; height: 24px; color: #fff; }
+    .stat-info { flex: 1; }
+    .stat-label { font-size: 12px; color: #999; }
+    .stat-value { font-size: 22px; font-weight: 800; color: #333; }
+    .stat-value .unit { font-size: 13px; font-weight: 500; color: #999; margin-left: 2px; }
+
+    /* Section header for pages */
+    .section-title { font-size: 18px; font-weight: 700; padding: 20px 0 12px; display: flex; align-items: center; gap: 8px; }
+    .section-title svg { width: 22px; height: 22px; color: #f57c00; }
+    .back-btn { background: none; border: none; cursor: pointer; color: #888; font-size: 14px; display: flex; align-items: center; gap: 4px; padding: 8px 0; }
+    .back-btn:hover { color: #f57c00; }
+    .back-btn svg { width: 18px; height: 18px; }
+
+    /* Car model list */
+    .car-model-list { list-style: none; }
+    .car-model-item { display: flex; align-items: center; padding: 14px 16px; background: #fff; border-radius: 10px; margin-bottom: 8px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: all 0.15s; }
+    .car-model-item:hover { background: #fff5ee; }
+    .car-model-item svg { width: 20px; height: 20px; margin-right: 12px; color: #f57c00; }
+    .car-model-item .model-name { flex: 1; font-weight: 600; }
+    .car-model-item .model-count { color: #999; font-size: 13px; }
+
+    /* Empty state */
+    .empty-state { text-align: center; padding: 60px 20px; color: #999; }
+    .empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; color: #ddd; }
+    .empty-state p { font-size: 15px; }
+
+    /* Notification / Message items */
+    .notif-item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: #fff; border-radius: 10px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .notif-item img { width: 36px; height: 36px; border-radius: 50%; }
+    .notif-text { flex: 1; font-size: 14px; }
+    .notif-time { font-size: 12px; color: #999; }
+
     /* Responsive */
     @media (max-width: 1200px) {
       .right-sidebar { display: none; }
@@ -161,6 +199,7 @@ function layout(title, content) {
       .main { margin-left: 0; }
       .feed { padding: 0 8px; }
       .post-action { padding: 8px 8px; font-size: 13px; }
+      .stats-banner { flex-direction: column; }
     }
   </style>
 </head>
@@ -173,40 +212,40 @@ function layout(title, content) {
         <p>ー 車好きが集まるSNS ー</p>
       </div>
       <div class="nav-menu">
-        <a href="/" class="nav-item active">
+        <a href="#" class="nav-item active" data-page="home" onclick="navigateTo('home', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
           ホーム
         </a>
-        <a href="#" class="nav-item" onclick="loadAllPosts()">
+        <a href="#" class="nav-item" data-page="all" onclick="navigateTo('all', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           みんなの投稿
         </a>
-        <a href="#" class="nav-item">
+        <a href="#" class="nav-item" data-page="explore" onclick="navigateTo('explore', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
           話題を探す
         </a>
-        <a href="#" class="nav-item">
+        <a href="#" class="nav-item" data-page="cars" onclick="navigateTo('cars', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           車種別
           <span class="arrow">›</span>
         </a>
-        <a href="#" class="nav-item">
+        <a href="#" class="nav-item" data-page="garage" onclick="navigateTo('garage', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
           ガレージ
         </a>
-        <a href="#" class="nav-item">
+        <a href="#" class="nav-item" data-page="reviews" onclick="navigateTo('reviews', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
           パーツレビュー
         </a>
-        <a href="#" class="nav-item">
+        <a href="#" class="nav-item" data-page="favorites" onclick="navigateTo('favorites', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           お気に入り
         </a>
-        <a href="#" class="nav-item">
+        <a href="#" class="nav-item" data-page="messages" onclick="navigateTo('messages', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
           メッセージ
         </a>
-        <a href="#" class="nav-item">
+        <a href="#" class="nav-item" data-page="notifications" onclick="navigateTo('notifications', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           お知らせ
         </a>
@@ -246,6 +285,30 @@ function layout(title, content) {
       </div>
 
       <div class="feed" id="feed">
+        <!-- Stats Banner -->
+        <div class="stats-banner">
+          <div class="stat-card">
+            <div class="stat-icon discord">
+              <svg viewBox="0 0 24 24" fill="white"><path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-label">Discordメンバー</div>
+              <div class="stat-value" id="discordCount">-<span class="unit">人</span></div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon visitors">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-label">サイト訪問者</div>
+              <div class="stat-value" id="visitorCount">-<span class="unit">人</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dynamic content area -->
+        <div id="dynamicContent">
         <!-- Composer -->
         <div class="composer">
           <div class="composer-top">
@@ -281,6 +344,7 @@ function layout(title, content) {
 
         <!-- Posts will be loaded here -->
         <div id="postsContainer"></div>
+        </div><!-- /dynamicContent -->
       </div>
     </main>
 
@@ -325,6 +389,10 @@ function layout(title, content) {
     const currentUser = { id: 1, username: 'sora_car', display_name: 'SORA' };
     let currentCommentPostId = null;
     let uploadedFiles = [];
+    let currentPage = 'home';
+
+    // Composer HTML (stored for re-insertion)
+    const composerHTML = document.querySelector('.composer') ? document.querySelector('.composer').outerHTML : '';
 
     // Initialize
     document.addEventListener('DOMContentLoaded', async () => {
@@ -333,11 +401,173 @@ function layout(title, content) {
       loadPosts();
       loadHashtags();
       loadRecommendedUsers();
+      loadStats();
+
+      // Track visit
+      try { await fetch('/api/stats/visit', { method: 'POST' }); } catch(e) {}
 
       document.getElementById('postContent').addEventListener('input', function() {
         document.getElementById('submitPost').disabled = !this.value.trim();
       });
     });
+
+    // Load stats counters
+    async function loadStats() {
+      // Discord
+      try {
+        const res = await fetch('/api/stats/discord');
+        const data = await res.json();
+        const el = document.getElementById('discordCount');
+        if (data.members !== null) {
+          el.innerHTML = data.members.toLocaleString() + '<span class="unit">人</span>';
+        } else {
+          el.innerHTML = '-<span class="unit">人</span>';
+        }
+      } catch(e) {}
+
+      // Visitors
+      try {
+        const res = await fetch('/api/stats/visitors');
+        const data = await res.json();
+        document.getElementById('visitorCount').innerHTML = data.total.toLocaleString() + '<span class="unit">人</span>';
+      } catch(e) {}
+    }
+
+    // Navigation
+    function navigateTo(page, el) {
+      if (el) {
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        el.classList.add('active');
+      }
+      currentPage = page;
+      const container = document.getElementById('dynamicContent');
+
+      switch(page) {
+        case 'home':
+          showHomePage(container);
+          break;
+        case 'all':
+          showAllPosts(container);
+          break;
+        case 'explore':
+          showExplorePage(container);
+          break;
+        case 'cars':
+          showCarsPage(container);
+          break;
+        case 'garage':
+          showGaragePage(container);
+          break;
+        case 'reviews':
+          showReviewsPage(container);
+          break;
+        case 'favorites':
+          showFavoritesPage(container);
+          break;
+        case 'messages':
+          showMessagesPage(container);
+          break;
+        case 'notifications':
+          showNotificationsPage(container);
+          break;
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function showHomePage(container) {
+      container.innerHTML = '<div class="composer"><div class="composer-top"><img src="/api/avatar/sora_car" alt="avatar"><div class="composer-input"><textarea id="postContent" placeholder="いまどうしてる？" rows="2"></textarea><div class="upload-preview" id="uploadPreview"></div></div></div><div class="composer-bottom"><div class="composer-tools"><label class="composer-tool" for="imageUpload"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>写真・動画</label><input type="file" id="imageUpload" accept="image/*" multiple style="display:none" onchange="handleImageSelect(event)"><button class="composer-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>車種</button><button class="composer-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>場所</button><button class="composer-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>気分</button></div><button class="composer-submit" id="submitPost" onclick="submitPost()" disabled>投稿する</button></div></div><div id="postsContainer"></div>';
+      document.getElementById('postContent').addEventListener('input', function() {
+        document.getElementById('submitPost').disabled = !this.value.trim();
+      });
+      loadPosts();
+    }
+
+    async function showAllPosts(container) {
+      container.innerHTML = '<div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>みんなの投稿</div><div id="postsContainer"></div>';
+      loadPosts();
+      showToast('最新の投稿を読み込みました');
+    }
+
+    async function showExplorePage(container) {
+      container.innerHTML = '<div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>話題を探す</div><div id="exploreHashtags"></div><div id="postsContainer"></div>';
+      try {
+        const res = await fetch('/api/hashtags/popular');
+        const data = await res.json();
+        const el = document.getElementById('exploreHashtags');
+        el.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px">' + data.hashtags.map(h =>
+          '<button onclick="searchHashtag(\'' + h.name + '\')" style="padding:8px 16px;background:#fff;border:1px solid #e5e5e5;border-radius:20px;cursor:pointer;font-size:14px;transition:all 0.15s" onmouseover="this.style.borderColor=\'#f57c00\';this.style.color=\'#f57c00\'" onmouseout="this.style.borderColor=\'#e5e5e5\';this.style.color=\'#333\'">#' + h.name + ' <span style="color:#999;font-size:12px">' + h.post_count.toLocaleString() + '</span></button>'
+        ).join('') + '</div>';
+      } catch(e) {}
+      loadPosts();
+    }
+
+    async function showCarsPage(container) {
+      container.innerHTML = '<div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>車種別</div><ul class="car-model-list" id="carModelList"></ul>';
+      try {
+        const res = await fetch('/api/cars');
+        const data = await res.json();
+        const list = document.getElementById('carModelList');
+        const models = Object.entries(data.models).sort((a,b) => b[1] - a[1]);
+        if (models.length === 0) {
+          list.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg><p>まだ車種の投稿がありません</p></div>';
+        } else {
+          list.innerHTML = models.map(([name, count]) =>
+            '<li class="car-model-item" onclick="loadCarModel(\'' + name + '\')">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>' +
+            '<span class="model-name">' + name + '</span>' +
+            '<span class="model-count">' + count + '件の投稿</span></li>'
+          ).join('');
+        }
+      } catch(e) {}
+    }
+
+    async function loadCarModel(model) {
+      const container = document.getElementById('dynamicContent');
+      container.innerHTML = '<button class="back-btn" onclick="navigateTo(\'cars\')">&larr; 車種別に戻る</button><div class="section-title">' + model + ' の投稿</div><div id="postsContainer"></div>';
+      try {
+        const res = await fetch('/api/cars/' + encodeURIComponent(model));
+        const data = await res.json();
+        renderPosts(data.posts);
+      } catch(e) {}
+    }
+
+    async function showGaragePage(container) {
+      container.innerHTML = '<div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>マイガレージ</div><div id="postsContainer"></div>';
+      try {
+        const res = await fetch('/api/garage?user_id=' + currentUser.id);
+        const data = await res.json();
+        if (data.posts.length === 0) {
+          document.getElementById('postsContainer').innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><p>まだ投稿がありません<br>「投稿する」ボタンから最初の投稿をしましょう！</p></div>';
+        } else {
+          renderPosts(data.posts);
+        }
+      } catch(e) {}
+    }
+
+    function showReviewsPage(container) {
+      container.innerHTML = '<div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>パーツレビュー</div><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg><p>パーツレビュー機能は近日公開予定です</p></div>';
+    }
+
+    async function showFavoritesPage(container) {
+      container.innerHTML = '<div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>お気に入り</div><div id="postsContainer"></div>';
+      try {
+        const res = await fetch('/api/bookmarks?user_id=' + currentUser.id);
+        const data = await res.json();
+        if (data.posts.length === 0) {
+          document.getElementById('postsContainer').innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><p>まだお気に入りがありません<br>投稿のブックマークアイコンをクリックして保存しましょう</p></div>';
+        } else {
+          renderPosts(data.posts);
+        }
+      } catch(e) {}
+    }
+
+    function showMessagesPage(container) {
+      container.innerHTML = '<div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>メッセージ</div><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><p>まだメッセージはありません</p></div>';
+    }
+
+    function showNotificationsPage(container) {
+      container.innerHTML = '<div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>お知らせ</div><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><p>新しいお知らせはありません</p></div>';
+    }
 
     async function loadPosts() {
       try {
@@ -350,8 +580,7 @@ function layout(title, content) {
     }
 
     async function loadAllPosts() {
-      loadPosts();
-      showToast('最新の投稿を読み込みました');
+      navigateTo('all', document.querySelector('[data-page="all"]'));
     }
 
     function renderPosts(posts) {

@@ -5,10 +5,9 @@ compatibility_date = "2024-09-25"
 [vars]
 SITE_NAME = "みんなの車部"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "minna-car-db"
-database_id = "placeholder"
+[[kv_namespaces]]
+binding = "KV"
+id = "f8127820c06d492c972972726af756e3"
 
 [[r2_buckets]]
 binding = "BUCKET"
