@@ -6,7 +6,7 @@ const api = new Hono();
 const SEED_USERS = [
   { id: 1, username: 'sora_car', display_name: 'SORA', bio: '車が大好き！GR86オーナー' },
   { id: 2, username: 'cart_kun', display_name: 'カートくん', bio: 'カスタムカー愛好家' },
-  { id: 3, username: 'drive_diary', display_name: 'ドライブ日記', bio: '週末ドライバー🚗' },
+  { id: 3, username: 'drive_diary', display_name: 'ドライブ日記', bio: '週末ドライバー' },
   { id: 4, username: 'maintenance_note', display_name: '整備記録簿', bio: 'DIY整備が趣味です' },
   { id: 5, username: 'takumi_car', display_name: '車好きのたくみ', bio: '峠を攻める！' },
   { id: 6, username: 'garage_life', display_name: 'ガレージライフ', bio: 'ガレージでの時間が至福' },
@@ -32,7 +32,7 @@ const SEED_POSTS = [
   },
   {
     id: 3, user_id: 4,
-    content: 'エンジンオイルとフィルター交換完了 🔧\nこれでまた気持ちよく走れるぞ！',
+    content: 'エンジンオイルとフィルター交換完了\nこれでまた気持ちよく走れるぞ！',
     car_model: '', location: '', mood: '',
     created_at: new Date(Date.now() - 86400000).toISOString(),
     images: [],
@@ -61,12 +61,56 @@ const SEED_COMMENTS = [
   { id: 3, user_id: 1, post_id: 2, content: '最高のドライブですね！', created_at: new Date(Date.now() - 3600000).toISOString() },
 ];
 
+const SEED_REVIEWS = [
+  { id: 1, user_id: 2, part_name: 'BBS RF 18インチ', category: 'ホイール', car_model: 'GR86', rating: 5, content: '軽量で剛性も高く、見た目も最高。走りが変わりました！', pros: '軽量、高剛性、デザイン◎', cons: '価格が高い', created_at: new Date(Date.now() - 7200000).toISOString() },
+  { id: 2, user_id: 4, part_name: 'CUSCO ストラットバー', category: 'サスペンション', car_model: 'GR86', rating: 4, content: 'コーナリングの安定感が増しました。取り付けも簡単。', pros: '剛性アップ、取付簡単', cons: '効果は体感しにくい場合も', created_at: new Date(Date.now() - 86400000).toISOString() },
+  { id: 3, user_id: 5, part_name: 'HKS マフラー Hi-Power', category: 'マフラー', car_model: 'GR86', rating: 5, content: '音が最高！低音の効いた良い音です。抜けも良くなった。', pros: '音質◎、排気効率アップ', cons: '車検対応要確認', created_at: new Date(Date.now() - 172800000).toISOString() },
+];
+
+const SEED_NOTIFICATIONS = [
+  { id: 1, type: 'like', from_user_id: 3, target_user_id: 1, post_id: 1, read: false, created_at: new Date(Date.now() - 1800000).toISOString() },
+  { id: 2, type: 'comment', from_user_id: 5, target_user_id: 2, post_id: 1, content: 'BBS似合ってますね！', read: false, created_at: new Date(Date.now() - 3600000).toISOString() },
+  { id: 3, type: 'follow', from_user_id: 7, target_user_id: 1, read: false, created_at: new Date(Date.now() - 7200000).toISOString() },
+];
+
+const SEED_MESSAGES = [
+  { id: 1, from_user_id: 2, to_user_id: 1, content: 'SORAさん、今度ドライブ行きませんか？', read: false, created_at: new Date(Date.now() - 3600000).toISOString() },
+  { id: 2, from_user_id: 1, to_user_id: 2, content: 'いいですね！どこ行きます？', read: true, created_at: new Date(Date.now() - 3000000).toISOString() },
+  { id: 3, from_user_id: 2, to_user_id: 1, content: '箱根ターンパイクとかどうですか？', read: false, created_at: new Date(Date.now() - 2400000).toISOString() },
+  { id: 4, from_user_id: 5, to_user_id: 1, content: '峠の走行会、参加しませんか？', read: false, created_at: new Date(Date.now() - 7200000).toISOString() },
+];
+
 // Helper: get/set KV data with fallback to seed
 async function getData(kv, key, seedData) {
   const val = await kv.get(key, 'json');
   if (val !== null) return val;
   await kv.put(key, JSON.stringify(seedData));
   return seedData;
+}
+
+async function hashString(str) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+}
+
+// Helper: add notification
+async function addNotification(kv, type, fromUserId, targetUserId, extra = {}) {
+  if (fromUserId === targetUserId) return;
+  const notifications = await getData(kv, 'notifications', SEED_NOTIFICATIONS);
+  let nextId = parseInt(await kv.get('next_notif_id') || String(SEED_NOTIFICATIONS.length + 1));
+  notifications.unshift({
+    id: nextId,
+    type,
+    from_user_id: fromUserId,
+    target_user_id: targetUserId,
+    read: false,
+    created_at: new Date().toISOString(),
+    ...extra,
+  });
+  await kv.put('notifications', JSON.stringify(notifications));
+  await kv.put('next_notif_id', String(nextId + 1));
 }
 
 // Initialize with seed data
@@ -79,8 +123,14 @@ api.post('/init', async (c) => {
   await kv.put('comments', JSON.stringify(SEED_COMMENTS));
   await kv.put('follows', JSON.stringify({}));
   await kv.put('bookmarks', JSON.stringify({}));
+  await kv.put('reviews', JSON.stringify(SEED_REVIEWS));
+  await kv.put('notifications', JSON.stringify(SEED_NOTIFICATIONS));
+  await kv.put('messages', JSON.stringify(SEED_MESSAGES));
   await kv.put('next_post_id', '4');
   await kv.put('next_comment_id', '4');
+  await kv.put('next_review_id', '4');
+  await kv.put('next_notif_id', '4');
+  await kv.put('next_message_id', '5');
   return c.json({ success: true, message: 'Data initialized' });
 });
 
@@ -107,6 +157,32 @@ api.get('/posts', async (c) => {
   return c.json({ posts: enriched });
 });
 
+// Get single post
+api.get('/posts/:id', async (c) => {
+  const kv = c.env.KV;
+  const postId = parseInt(c.req.param('id'));
+  const posts = await getData(kv, 'posts', SEED_POSTS);
+  const users = await getData(kv, 'users', SEED_USERS);
+  const likes = await getData(kv, 'likes', SEED_LIKES);
+  const comments = await getData(kv, 'comments', SEED_COMMENTS);
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u;
+
+  const post = posts.find(p => p.id === postId);
+  if (!post) return c.json({ error: 'Post not found' }, 404);
+
+  return c.json({
+    post: {
+      ...post,
+      username: userMap[post.user_id]?.username || 'unknown',
+      display_name: userMap[post.user_id]?.display_name || 'Unknown',
+      avatar_url: '/api/avatar/' + (userMap[post.user_id]?.username || 'default'),
+      like_count: (likes[post.id] || []).length,
+      comment_count: comments.filter(cm => cm.post_id === post.id).length,
+    }
+  });
+});
+
 // Create post
 api.post('/posts', async (c) => {
   const kv = c.env.KV;
@@ -118,7 +194,6 @@ api.post('/posts', async (c) => {
   const hashtags = await getData(kv, 'hashtags', SEED_HASHTAGS);
   let nextId = parseInt(await kv.get('next_post_id') || '4');
 
-  // Extract hashtags
   const postHashtags = [];
   const hashtagRegex = /#([\w\u3000-\u9fff\uf900-\ufaff]+)/g;
   let match;
@@ -152,6 +227,32 @@ api.post('/posts', async (c) => {
   return c.json({ success: true, post_id: nextId });
 });
 
+// Delete post
+api.delete('/posts/:id', async (c) => {
+  const kv = c.env.KV;
+  const postId = parseInt(c.req.param('id'));
+  const body = await c.req.json();
+  const userId = body.user_id || 1;
+
+  const posts = await getData(kv, 'posts', SEED_POSTS);
+  const idx = posts.findIndex(p => p.id === postId && p.user_id === userId);
+  if (idx < 0) return c.json({ error: 'Not found or not owner' }, 403);
+
+  posts.splice(idx, 1);
+  await kv.put('posts', JSON.stringify(posts));
+
+  // Clean up related data
+  const likes = await getData(kv, 'likes', SEED_LIKES);
+  delete likes[postId];
+  await kv.put('likes', JSON.stringify(likes));
+
+  const comments = await getData(kv, 'comments', SEED_COMMENTS);
+  const filtered = comments.filter(cm => cm.post_id !== postId);
+  await kv.put('comments', JSON.stringify(filtered));
+
+  return c.json({ success: true });
+});
+
 // Like/unlike post
 api.post('/posts/:id/like', async (c) => {
   const kv = c.env.KV;
@@ -170,6 +271,10 @@ api.post('/posts/:id/like', async (c) => {
   } else {
     likes[postId].push(userId);
     await kv.put('likes', JSON.stringify(likes));
+    // Get post owner for notification
+    const posts = await getData(kv, 'posts', SEED_POSTS);
+    const post = posts.find(p => p.id === parseInt(postId));
+    if (post) await addNotification(kv, 'like', userId, post.user_id, { post_id: parseInt(postId) });
     return c.json({ liked: true });
   }
 });
@@ -212,7 +317,6 @@ api.get('/posts/:id/comments', async (c) => {
       ...cm,
       username: userMap[cm.user_id]?.username || 'unknown',
       display_name: userMap[cm.user_id]?.display_name || 'Unknown',
-      avatar_url: '/api/avatar/' + (userMap[cm.user_id]?.username || 'default'),
     }));
 
   return c.json({ comments: postComments });
@@ -238,6 +342,11 @@ api.post('/posts/:id/comments', async (c) => {
 
   await kv.put('comments', JSON.stringify(comments));
   await kv.put('next_comment_id', String(nextId + 1));
+
+  // Notification to post owner
+  const posts = await getData(kv, 'posts', SEED_POSTS);
+  const post = posts.find(p => p.id === postId);
+  if (post) await addNotification(kv, 'comment', userId, post.user_id, { post_id: postId, content: body.content });
 
   return c.json({ success: true });
 });
@@ -266,7 +375,6 @@ api.get('/hashtags/:name', async (c) => {
     ...p,
     username: userMap[p.user_id]?.username || 'unknown',
     display_name: userMap[p.user_id]?.display_name || 'Unknown',
-    avatar_url: '/api/avatar/' + (userMap[p.user_id]?.username || 'default'),
     like_count: (likes[p.id] || []).length,
     comment_count: comments.filter(cm => cm.post_id === p.id).length,
   }));
@@ -292,12 +400,25 @@ api.get('/users/:username', async (c) => {
 
   const posts = await getData(kv, 'posts', SEED_POSTS);
   const follows = await getData(kv, 'follows', {});
+  const likes = await getData(kv, 'likes', SEED_LIKES);
+  const comments = await getData(kv, 'comments', SEED_COMMENTS);
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u;
+
+  const userPosts = posts.filter(p => p.user_id === user.id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(p => ({
+    ...p,
+    username: userMap[p.user_id]?.username || 'unknown',
+    display_name: userMap[p.user_id]?.display_name || 'Unknown',
+    like_count: (likes[p.id] || []).length,
+    comment_count: comments.filter(cm => cm.post_id === p.id).length,
+  }));
 
   return c.json({
     ...user,
-    post_count: posts.filter(p => p.user_id === user.id).length,
+    post_count: userPosts.length,
     follower_count: Object.values(follows).filter(arr => arr.includes(user.id)).length,
     following_count: (follows[user.id] || []).length,
+    posts: userPosts,
   });
 });
 
@@ -319,6 +440,7 @@ api.post('/users/:id/follow', async (c) => {
   } else {
     follows[userId].push(targetId);
     await kv.put('follows', JSON.stringify(follows));
+    await addNotification(kv, 'follow', userId, targetId);
     return c.json({ following: true });
   }
 });
@@ -345,7 +467,6 @@ api.get('/search', async (c) => {
     ...p,
     username: userMap[p.user_id]?.username || 'unknown',
     display_name: userMap[p.user_id]?.display_name || 'Unknown',
-    avatar_url: '/api/avatar/' + (userMap[p.user_id]?.username || 'default'),
     like_count: (likes[p.id] || []).length,
     comment_count: comments.filter(cm => cm.post_id === p.id).length,
   }));
@@ -458,9 +579,6 @@ api.get('/stats/discord', async (c) => {
       return c.json({ members: null, error: 'Widget disabled' });
     }
     const data = await res.json();
-    // widget.json "members" array only contains online non-bot members;
-    // "presence_count" gives approximate online count
-    // For total member count we use the name field or presence_count
     return c.json({
       members: data.presence_count || data.members?.length || 0,
       name: data.name || 'Discord',
@@ -475,12 +593,10 @@ api.post('/stats/visit', async (c) => {
   const kv = c.env.KV;
   const today = new Date().toISOString().slice(0, 10);
 
-  // Increment total visitor count
   const totalStr = await kv.get('stats_total_visitors');
   const total = parseInt(totalStr || '0') + 1;
   await kv.put('stats_total_visitors', String(total));
 
-  // Track unique daily visitors via IP hash
   const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
   const dailyKey = `stats_daily_${today}`;
   const dailyData = await kv.get(dailyKey, 'json') || { count: 0, ips: [] };
@@ -502,13 +618,6 @@ api.get('/stats/visitors', async (c) => {
   return c.json({ total: parseInt(totalStr || '0'), today: dailyData.count });
 });
 
-async function hashString(str) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(str);
-  const hash = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
-}
-
 // Get user's bookmarked posts
 api.get('/bookmarks', async (c) => {
   const kv = c.env.KV;
@@ -527,7 +636,6 @@ api.get('/bookmarks', async (c) => {
     ...p,
     username: userMap[p.user_id]?.username || 'unknown',
     display_name: userMap[p.user_id]?.display_name || 'Unknown',
-    avatar_url: '/api/avatar/' + (userMap[p.user_id]?.username || 'default'),
     like_count: (likes[p.id] || []).length,
     comment_count: comments.filter(cm => cm.post_id === p.id).length,
   }));
@@ -563,7 +671,6 @@ api.get('/cars/:model', async (c) => {
     ...p,
     username: userMap[p.user_id]?.username || 'unknown',
     display_name: userMap[p.user_id]?.display_name || 'Unknown',
-    avatar_url: '/api/avatar/' + (userMap[p.user_id]?.username || 'default'),
     like_count: (likes[p.id] || []).length,
     comment_count: comments.filter(cm => cm.post_id === p.id).length,
   }));
@@ -587,7 +694,6 @@ api.get('/garage', async (c) => {
     ...p,
     username: userMap[p.user_id]?.username || 'unknown',
     display_name: userMap[p.user_id]?.display_name || 'Unknown',
-    avatar_url: '/api/avatar/' + (userMap[p.user_id]?.username || 'default'),
     like_count: (likes[p.id] || []).length,
     comment_count: comments.filter(cm => cm.post_id === p.id).length,
   }));
@@ -595,18 +701,199 @@ api.get('/garage', async (c) => {
   return c.json({ posts: enriched });
 });
 
-// Get notifications
+// ===== NOTIFICATIONS =====
 api.get('/notifications', async (c) => {
   const kv = c.env.KV;
-  const notifications = await getData(kv, 'notifications', []);
-  return c.json({ notifications });
+  const userId = parseInt(c.req.query('user_id') || '1');
+  const notifications = await getData(kv, 'notifications', SEED_NOTIFICATIONS);
+  const users = await getData(kv, 'users', SEED_USERS);
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u;
+
+  const userNotifs = notifications
+    .filter(n => n.target_user_id === userId)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, 50)
+    .map(n => ({
+      ...n,
+      from_username: userMap[n.from_user_id]?.username || 'unknown',
+      from_display_name: userMap[n.from_user_id]?.display_name || 'Unknown',
+    }));
+
+  return c.json({ notifications: userNotifs });
 });
 
-// Get messages
-api.get('/messages', async (c) => {
+api.post('/notifications/read', async (c) => {
   const kv = c.env.KV;
-  const messages = await getData(kv, 'messages', []);
-  return c.json({ messages });
+  const body = await c.req.json();
+  const userId = body.user_id || 1;
+  const notifications = await getData(kv, 'notifications', SEED_NOTIFICATIONS);
+  for (const n of notifications) {
+    if (n.target_user_id === userId) n.read = true;
+  }
+  await kv.put('notifications', JSON.stringify(notifications));
+  return c.json({ success: true });
+});
+
+api.get('/notifications/unread', async (c) => {
+  const kv = c.env.KV;
+  const userId = parseInt(c.req.query('user_id') || '1');
+  const notifications = await getData(kv, 'notifications', SEED_NOTIFICATIONS);
+  const count = notifications.filter(n => n.target_user_id === userId && !n.read).length;
+  return c.json({ count });
+});
+
+// ===== MESSAGES =====
+api.get('/messages/conversations', async (c) => {
+  const kv = c.env.KV;
+  const userId = parseInt(c.req.query('user_id') || '1');
+  const messages = await getData(kv, 'messages', SEED_MESSAGES);
+  const users = await getData(kv, 'users', SEED_USERS);
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u;
+
+  // Group by other user
+  const convMap = {};
+  for (const m of messages) {
+    if (m.from_user_id !== userId && m.to_user_id !== userId) continue;
+    const otherId = m.from_user_id === userId ? m.to_user_id : m.from_user_id;
+    if (!convMap[otherId] || new Date(m.created_at) > new Date(convMap[otherId].created_at)) {
+      convMap[otherId] = m;
+    }
+  }
+
+  const conversations = Object.entries(convMap).map(([otherId, lastMsg]) => {
+    const other = userMap[parseInt(otherId)];
+    const unread = messages.filter(m => m.from_user_id === parseInt(otherId) && m.to_user_id === userId && !m.read).length;
+    return {
+      user_id: parseInt(otherId),
+      username: other?.username || 'unknown',
+      display_name: other?.display_name || 'Unknown',
+      last_message: lastMsg.content,
+      last_time: lastMsg.created_at,
+      unread,
+    };
+  }).sort((a, b) => new Date(b.last_time) - new Date(a.last_time));
+
+  return c.json({ conversations });
+});
+
+api.get('/messages/thread/:userId', async (c) => {
+  const kv = c.env.KV;
+  const currentUserId = parseInt(c.req.query('user_id') || '1');
+  const otherUserId = parseInt(c.req.param('userId'));
+  const messages = await getData(kv, 'messages', SEED_MESSAGES);
+  const users = await getData(kv, 'users', SEED_USERS);
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u;
+
+  const thread = messages
+    .filter(m => (m.from_user_id === currentUserId && m.to_user_id === otherUserId) ||
+                 (m.from_user_id === otherUserId && m.to_user_id === currentUserId))
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    .map(m => ({
+      ...m,
+      from_username: userMap[m.from_user_id]?.username || 'unknown',
+      from_display_name: userMap[m.from_user_id]?.display_name || 'Unknown',
+      is_mine: m.from_user_id === currentUserId,
+    }));
+
+  // Mark as read
+  for (const m of messages) {
+    if (m.from_user_id === otherUserId && m.to_user_id === currentUserId) m.read = true;
+  }
+  await kv.put('messages', JSON.stringify(messages));
+
+  const other = userMap[otherUserId];
+  return c.json({ thread, other_user: other || { username: 'unknown', display_name: 'Unknown' } });
+});
+
+api.post('/messages/send', async (c) => {
+  const kv = c.env.KV;
+  const body = await c.req.json();
+  const fromId = body.user_id || 1;
+  const toId = body.to_user_id;
+  const content = body.content;
+
+  if (!toId || !content) return c.json({ error: 'Missing fields' }, 400);
+
+  const messages = await getData(kv, 'messages', SEED_MESSAGES);
+  let nextId = parseInt(await kv.get('next_message_id') || '5');
+
+  messages.push({
+    id: nextId,
+    from_user_id: fromId,
+    to_user_id: toId,
+    content,
+    read: false,
+    created_at: new Date().toISOString(),
+  });
+
+  await kv.put('messages', JSON.stringify(messages));
+  await kv.put('next_message_id', String(nextId + 1));
+
+  await addNotification(kv, 'message', fromId, toId, { content });
+
+  return c.json({ success: true, message_id: nextId });
+});
+
+api.get('/messages/unread', async (c) => {
+  const kv = c.env.KV;
+  const userId = parseInt(c.req.query('user_id') || '1');
+  const messages = await getData(kv, 'messages', SEED_MESSAGES);
+  const count = messages.filter(m => m.to_user_id === userId && !m.read).length;
+  return c.json({ count });
+});
+
+// ===== PARTS REVIEWS =====
+api.get('/reviews', async (c) => {
+  const kv = c.env.KV;
+  const reviews = await getData(kv, 'reviews', SEED_REVIEWS);
+  const users = await getData(kv, 'users', SEED_USERS);
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u;
+
+  const category = c.req.query('category');
+  let filtered = reviews;
+  if (category) filtered = reviews.filter(r => r.category === category);
+
+  const enriched = filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(r => ({
+    ...r,
+    username: userMap[r.user_id]?.username || 'unknown',
+    display_name: userMap[r.user_id]?.display_name || 'Unknown',
+  }));
+
+  return c.json({ reviews: enriched });
+});
+
+api.post('/reviews', async (c) => {
+  const kv = c.env.KV;
+  const body = await c.req.json();
+  const reviews = await getData(kv, 'reviews', SEED_REVIEWS);
+  let nextId = parseInt(await kv.get('next_review_id') || '4');
+
+  const newReview = {
+    id: nextId,
+    user_id: body.user_id || 1,
+    part_name: body.part_name,
+    category: body.category || 'その他',
+    car_model: body.car_model || '',
+    rating: body.rating || 5,
+    content: body.content,
+    pros: body.pros || '',
+    cons: body.cons || '',
+    created_at: new Date().toISOString(),
+  };
+
+  reviews.unshift(newReview);
+  await kv.put('reviews', JSON.stringify(reviews));
+  await kv.put('next_review_id', String(nextId + 1));
+
+  return c.json({ success: true, review_id: nextId });
+});
+
+api.get('/reviews/categories', async (c) => {
+  return c.json({ categories: ['ホイール', 'タイヤ', 'マフラー', 'サスペンション', 'ブレーキ', 'エアロ', 'インテリア', 'エンジン', 'ライト', 'オイル・ケミカル', 'その他'] });
 });
 
 export { api as apiRoutes };
